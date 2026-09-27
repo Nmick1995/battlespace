@@ -8,7 +8,9 @@
 
 A cinematic 3D take on Battleship for the browser, with procedural starships, per-section damage, a camera that follows every salvo, and a synthesized monk-choir soundtrack. Built entirely with code: no models, textures or audio files.
 
-[Features](#features) · [Gallery](#gallery) · [Play](#play-it) · [Rules](#rules-of-engagement) · [How it's made](#how-its-made)
+### [▶ Play in your browser](https://nmick1995.github.io/battlespace/)
+
+[Features](#features) · [Gallery](#gallery) · [Run locally](#play-it) · [Rules](#rules-of-engagement) · [How it's made](#how-its-made)
 
 </div>
 
@@ -76,7 +78,9 @@ The rules are the classic ones. The rest is space opera.
 
 ## Play it
 
-You need [Node.js](https://nodejs.org/) (any recent version) and an internet connection the first time, to load Three.js and fonts from a CDN. There are no dependencies to install.
+**No install needed:** play at **https://nmick1995.github.io/battlespace/** in any modern desktop browser with WebGL2.
+
+To run it locally instead, you need [Node.js](https://nodejs.org/) (any recent version) and an internet connection the first time, to load Three.js and fonts from a CDN. There are no dependencies to install.
 
 ```bash
 git clone https://github.com/Nmick1995/battlespace.git
