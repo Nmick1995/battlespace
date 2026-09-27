@@ -1,0 +1,10 @@
+{
+  "name": "battlespace",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cinematic 3D space Battleship for the browser — procedural starships, per-section damage and a synthesized choir soundtrack.",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "https://github.com/Nmick1995/battlespace.git" },
+  "keywords": ["battleship", "threejs", "webgl", "game", "space", "web-audio"],
+  "scripts": { "start": "node server.js" }
+}

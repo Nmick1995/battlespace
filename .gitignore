@@ -1,0 +1,6 @@
+node_modules/
+.claude/
+# raw capture dumps (curated shots live in docs/screenshots)
+/screenshots/
+.DS_Store
+Thumbs.db

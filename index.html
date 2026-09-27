@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BattleSpace — Fleet Command</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="vignette"></div>
+<div id="flash"></div>
+
+<!-- Splash: needed so audio can start on a user gesture -->
+<div id="splash" class="screen show">
+  <div class="splash-inner">
+    <div class="splash-logo">BATTLESPACE</div>
+    <div class="splash-bar"><span></span></div>
+    <div class="splash-prompt" id="splashPrompt">LOADING SYSTEMS…</div>
+  </div>
+</div>
+
+<!-- Main menu -->
+<div id="menu" class="screen">
+  <div class="menu-top">
+    <div class="menu-kicker">UNITED EARTH STELLAR NAVY · FLEET COMMAND</div>
+    <h1 class="title" data-text="BATTLESPACE">BATTLESPACE</h1>
+    <div class="subtitle"><span></span>THE SILENT WAR OF THE OUTER RIM<span></span></div>
+  </div>
+  <div class="menu-body">
+    <nav class="menu-buttons">
+      <button class="mbtn primary" data-act="play"><i>01</i>ENGAGE ENEMY</button>
+      <button class="mbtn" data-act="difficulty"><i>02</i>THREAT LEVEL: <b id="diffLabel">COMMANDER</b></button>
+      <button class="mbtn" data-act="settings"><i>03</i>SYSTEMS</button>
+      <button class="mbtn" data-act="briefing"><i>04</i>BRIEFING</button>
+    </nav>
+    <div class="menu-panel" id="menuPanel"></div>
+  </div>
+  <div class="menu-footer">
+    <span>SECTOR 7G · KEPLER-442 ORBITAL THEATRE</span>
+    <span class="blink">● SIGNAL ACQUIRED</span>
+  </div>
+</div>
+
+<!-- In-game HUD -->
+<div id="hud" class="hidden">
+  <div class="hud-top">
+    <div class="turn" id="turnBanner">DEPLOY YOUR FLEET</div>
+    <div class="turn-sub" id="turnSub">Position all five vessels on your grid</div>
+  </div>
+
+  <div class="panel left" id="fleetPanel">
+    <div class="panel-h">YOUR FLEET</div>
+    <div class="panel-list" id="fleetList"></div>
+  </div>
+  <div class="panel right" id="enemyPanel">
+    <div class="panel-h red">HOSTILE FLEET</div>
+    <div class="panel-list" id="enemyList"></div>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <div class="log" id="log"></div>
+
+  <div class="hud-buttons">
+    <button class="hbtn" id="btnView" title="Toggle view (V)">⇅ VIEW</button>
+    <button class="hbtn" id="btnMute" title="Mute (M)">♪ AUDIO</button>
+    <button class="hbtn" id="btnExit" title="Main menu">✕ MENU</button>
+  </div>
+
+  <div class="placement" id="placement">
+    <div class="panel-h">DEPLOYMENT</div>
+    <div id="placeList"></div>
+    <div class="place-help"><b>CLICK</b> place · <b>R</b> / <b>RIGHT-CLICK</b> rotate</div>
+    <div class="place-row">
+      <button class="hbtn" id="btnRandom">⟳ AUTO-DEPLOY</button>
+      <button class="hbtn" id="btnClear">⌫ RESET</button>
+    </div>
+    <button class="mbtn primary small" id="btnEngage" disabled>ENGAGE ▸</button>
+  </div>
+
+  <div class="cursor-tag" id="cursorTag"></div>
+</div>
+
+<!-- Cinematic overlay -->
+<div id="letterbox"><div class="lb top"></div><div class="lb bottom"></div></div>
+<div id="caption"><div class="cap-small" id="capSmall"></div><div class="cap-big" id="capBig"></div></div>
+<div id="skipHint">HOLD <b>SPACE</b> TO FAST-FORWARD</div>
+<div id="announce"><div class="ann-text" id="annText"></div></div>
+
+<!-- Game over -->
+<div id="gameover" class="screen">
+  <div class="go-inner">
+    <div class="go-kicker" id="goKicker">ENGAGEMENT COMPLETE</div>
+    <div class="go-title" id="goTitle">VICTORY</div>
+    <div class="go-stats" id="goStats"></div>
+    <div class="go-buttons">
+      <button class="mbtn primary" id="btnAgain">RE-ENGAGE</button>
+      <button class="mbtn" id="btnMenu">MAIN MENU</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
