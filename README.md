@@ -41,7 +41,8 @@ The rules are the classic ones. The rest is space opera.
 - **Nothing gives away enemy positions.** Enemy ships stay invisible until they sink. Enemy fire comes from off-screen, so it never reveals where their fleet is.
 - **An original generated soundtrack.** Menu music is Gregorian-style chant with an organum choir, full choir chords, taiko drums and string ostinatos. In-game music is a quieter, tense ambient version. Every sound effect is synthesized live with the Web Audio API.
 - **Three AI threat levels.** Cadet, Commander and Admiral. Admiral scores every legal placement of your remaining ships and fires at the most likely cell.
-- **A living backdrop.** Procedural nebula, a gas giant with rings and an atmosphere, a drifting asteroid field, and HDR bloom.
+- **Failing shields.** Your ships' shields flare with a hex-pattern ripple at the point of impact before the hull breaks.
+- **A living backdrop.** Procedural nebula, a banded gas giant with rings and an atmosphere, cratered asteroids with per-pixel rock detail, drifting space dust, and HDR bloom.
 
 ## Gallery
 
@@ -69,6 +70,14 @@ The rules are the classic ones. The rest is space opera.
 <tr>
 <td><img src="docs/screenshots/frigate-decloaked.jpg" alt="Frigate decloaked"><br><sub><b>Stealth frigate revealed</b>, burning from stern to bow</sub></td>
 <td><img src="docs/screenshots/carrier-breakup.jpg" alt="Carrier breakup"><br><sub><b>Reactor breach</b>: the hull breaks into burning pieces</sub></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/shield-flare.jpg" alt="Shield flare"><br><sub><b>Shields failing</b>: a hex-pattern energy ripple spreads from the impact point</sub></td>
+<td><img src="docs/screenshots/cruiser-decloaked.jpg" alt="Cruiser decloaked"><br><sub><b>Cloak down</b>: every section burning where it was struck</sub></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/reactor-breach.jpg" alt="Reactor breach"><br><sub><b>Reactor breach</b>: a slow-motion flash with an anamorphic lens streak</sub></td>
+<td><img src="docs/screenshots/cruiser-breakup.jpg" alt="Cruiser breakup"><br><sub><b>Cruiser destroyed</b>: burning segments tumble across the grid</sub></td>
 </tr>
 <tr>
 <td><img src="docs/screenshots/frigate-breakup.jpg" alt="Frigate destroyed"><br><sub><b>Stealth frigate destroyed</b></sub></td>
@@ -109,11 +118,12 @@ BattleSpace follows the classic rules of Battleship.
 | Action | Input |
 |---|---|
 | Place ship | Left click |
-| Rotate ship | `R` or right click |
+| Rotate ship | `R`, right click, or the **ROTATE** button |
 | Fire | Left click on the hostile grid |
 | Toggle fleet / target view | `V` |
 | Fast-forward a cinematic | Hold `Space` |
 | Mute | `M` |
+| Touch screens | Tap a cell to preview, tap it again to place or fire. Use the **ROTATE** button. |
 
 ### Threat levels
 

@@ -33,6 +33,59 @@ function smokeTexture() {
   return t;
 }
 
+function fireTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const g = c.getContext('2d');
+  for (let i = 0; i < 26; i++) {
+    const a = Math.random() * 6.28, d = Math.random() * 28;
+    const x = 64 + Math.cos(a) * d, y = 64 + Math.sin(a) * d, r = rand(16, 34);
+    const grd = g.createRadialGradient(x, y, 0, x, y, r);
+    grd.addColorStop(0, 'rgba(255,255,255,0.5)');
+    grd.addColorStop(0.5, 'rgba(255,255,255,0.18)');
+    grd.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = grd; g.fillRect(0, 0, 128, 128);
+  }
+  // radial mask so puffs never show square edges
+  g.globalCompositeOperation = 'destination-in';
+  const m = g.createRadialGradient(64, 64, 20, 64, 64, 64);
+  m.addColorStop(0, 'rgba(0,0,0,1)'); m.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = m; g.fillRect(0, 0, 128, 128);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+function streakTexture() {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 32;
+  const g = c.getContext('2d');
+  const h = g.createLinearGradient(0, 0, 256, 0);
+  h.addColorStop(0, 'rgba(255,255,255,0)'); h.addColorStop(0.5, 'rgba(255,255,255,1)'); h.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = h; g.fillRect(0, 0, 256, 32);
+  g.globalCompositeOperation = 'destination-in';
+  const v = g.createLinearGradient(0, 0, 0, 32);
+  v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(0.5, 'rgba(0,0,0,1)'); v.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = v; g.fillRect(0, 0, 256, 32);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+// Soft shockwave: a gaussian band with a faint inner haze and subtle angular turbulence.
+const shockMat = (color, opacity, thick) => new THREE.ShaderMaterial({
+  uniforms: { color: { value: color }, opacity: { value: opacity }, thick: { value: thick }, seed: { value: Math.random() * 10 } },
+  vertexShader: `varying vec2 vUv; void main(){ vUv = uv*2.0-1.0; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+  fragmentShader: `uniform vec3 color; uniform float opacity; uniform float thick; uniform float seed; varying vec2 vUv;
+    void main(){
+      float d = length(vUv);
+      float ang = atan(vUv.y, vUv.x);
+      float wob = 0.012*sin(ang*7.0+seed) + 0.008*sin(ang*13.0-seed*2.0);
+      float w = max(thick*0.5, 0.015);
+      float band = exp(-pow((d - (0.94 - w) + wob)/w, 2.0));
+      float haze = smoothstep(1.0, 0.0, d) * 0.12;
+      float a = (band + haze) * opacity * step(d, 1.0);
+      gl_FragColor = vec4(color*a, a);
+    }`,
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+});
+
 export const TEX = {};
 
 class Particles {
@@ -128,10 +181,12 @@ export const COLORS = {
 export class FX {
   constructor(scene) {
     this.scene = scene;
-    TEX.soft = softTexture(); TEX.smoke = smokeTexture();
+    TEX.soft = softTexture(); TEX.smoke = smokeTexture(); TEX.fire = fireTexture(); TEX.streak = streakTexture();
     this.add = new Particles(14000, THREE.AdditiveBlending, TEX.soft);
+    this.puffs = new Particles(6000, THREE.AdditiveBlending, TEX.fire); // billowing fireball puffs
     this.smoke = new Particles(5000, THREE.NormalBlending, TEX.smoke);
-    scene.add(this.add.points, this.smoke.points);
+    scene.add(this.add.points, this.puffs.points, this.smoke.points);
+    this.ringGeoShared = new THREE.PlaneGeometry(2, 2);
     this.anims = []; // generic per-frame updaters
     this.emitters = [];
     this.projectiles = [];
@@ -148,7 +203,7 @@ export class FX {
     this.sprMats = new Map();
   }
 
-  setScale(h) { this.add.mat.uniforms.scale.value = h * 0.9; this.smoke.mat.uniforms.scale.value = h * 0.9; }
+  setScale(h) { for (const p of [this.add, this.puffs, this.smoke]) p.mat.uniforms.scale.value = h * 0.9; }
 
   update(dt) {
     for (let i = this.anims.length - 1; i >= 0; i--) if (this.anims[i](dt) === false) this.anims.splice(i, 1);
@@ -167,11 +222,11 @@ export class FX {
         l.intensity = l.userData.peak * Math.pow(1 - k, 2);
       } else l.intensity = 0;
     }
-    this.add.update(dt); this.smoke.update(dt);
+    this.add.update(dt); this.puffs.update(dt); this.smoke.update(dt);
   }
 
   clear() {
-    this.add.clear(); this.smoke.clear();
+    this.add.clear(); this.puffs.clear(); this.smoke.clear();
     this.emitters.length = 0;
     for (const p of this.projectiles) p.dispose();
     this.projectiles.length = 0;
@@ -200,9 +255,8 @@ export class FX {
   }
 
   ring(pos, color, radius, dur, { normal = new THREE.Vector3(0, 1, 0), thick = 0.15, opacity = 1, start = 0.1 } = {}) {
-    const mat = new THREE.MeshBasicMaterial({ color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, opacity });
-    const geo = new THREE.RingGeometry(1 - thick, 1, 96);
-    const m = new THREE.Mesh(geo, mat);
+    const mat = shockMat(new THREE.Color(color), opacity, thick);
+    const m = new THREE.Mesh(this.ringGeoShared, mat);
     m.position.copy(pos);
     m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal.clone().normalize());
     m.renderOrder = 4;
@@ -210,12 +264,62 @@ export class FX {
     let t = 0;
     this.anims.push((dt) => {
       t += dt; const k = t / dur;
-      if (k >= 1) { this.scene.remove(m); geo.dispose(); mat.dispose(); return false; }
+      if (k >= 1) { this.scene.remove(m); mat.dispose(); return false; }
       const e = 1 - Math.pow(1 - k, 3);
       m.scale.setScalar(radius * (start + (1 - start) * e));
-      mat.opacity = opacity * (1 - k) * (1 - k);
+      mat.uniforms.opacity.value = opacity * (1 - k) * (1 - k);
+      mat.uniforms.thick.value = thick * (1 + k * 1.5); // band softens as it expands
     });
     return m;
+  }
+
+  // Anamorphic lens streak: a horizontal flare across the frame.
+  streak(pos, color, width, dur, opacity = 0.8) {
+    const mat = new THREE.SpriteMaterial({ map: TEX.streak, color, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, depthTest: false, opacity });
+    const s = new THREE.Sprite(mat); s.position.copy(pos); s.renderOrder = 6;
+    this.scene.add(s);
+    let t = 0;
+    this.anims.push((dt) => {
+      t += dt; const k = t / dur;
+      if (k >= 1) { this.scene.remove(s); mat.dispose(); return false; }
+      s.scale.set(width * (0.6 + 0.6 * k), width * 0.035, 1);
+      mat.opacity = opacity * Math.pow(1 - k, 2);
+    });
+    return s;
+  }
+
+  // Energy shield flaring around a ship as it absorbs (and fails against) a hit.
+  shield(ship, impact) {
+    const len = ship.len * 4;
+    const geo = new THREE.SphereGeometry(1, 48, 24);
+    const mat = new THREE.ShaderMaterial({
+      uniforms: { t: { value: 0 }, impact: { value: ship.root.worldToLocal(impact.clone()) }, color: { value: new THREE.Color(0.4, 1.6, 3.2) } },
+      vertexShader: `varying vec3 vN; varying vec3 vV; varying vec3 vL;
+        void main(){ vL = position; vec4 w = modelMatrix*vec4(position,1.0); vN = normalize(mat3(modelMatrix)*normal); vV = normalize(cameraPosition - w.xyz); gl_Position = projectionMatrix*viewMatrix*w; }`,
+      fragmentShader: `uniform float t; uniform vec3 impact; uniform vec3 color; varying vec3 vN; varying vec3 vV; varying vec3 vL;
+        void main(){
+          float fres = pow(1.0 - abs(dot(vN, vV)), 2.5);
+          vec2 hp = vec2(atan(vL.z, vL.x)*6.0, vL.y*10.0);
+          vec2 hf = abs(fract(hp + vec2(0.0, floor(hp.x)*0.5)) - 0.5);
+          float hex = smoothstep(0.42, 0.5, max(hf.x*1.5, hf.y + hf.x*0.6));
+          float d = distance(normalize(vL), normalize(impact));
+          float wave = exp(-pow((d - t*2.4)*5.0, 2.0));
+          float core = exp(-d*6.0) * (1.0 - t);
+          float fade = 1.0 - t;
+          float a = (fres*0.8 + hex*0.6*wave + wave*0.9 + core*1.5) * fade;
+          gl_FragColor = vec4(color*a, a);
+        }`,
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+    });
+    const m = new THREE.Mesh(geo, mat);
+    m.scale.set(len * 0.62, 1.6, 2.4);
+    ship.root.add(m);
+    let t = 0; const dur = 1.3;
+    this.anims.push((dt) => {
+      t += dt; const k = t / dur;
+      if (k >= 1 || !m.parent) { m.parent && m.parent.remove(m); geo.dispose(); mat.dispose(); return false; }
+      mat.uniforms.t.value = k;
+    });
   }
 
   sparks(pos, n, speed, color = COLORS.spark, life = 0.8, size = 0.25) {
@@ -229,15 +333,16 @@ export class FX {
   explosion(pos, s = 1, opts = {}) {
     const up = opts.noSmoke ? 0 : 1;
     this.flash(pos, 0xff9a4a, 450 * s, 0.9 * s, 50 * s);
-    this.sprite(pos, new THREE.Color(2.2, 1.6, 1.0), 5 * s, 0.3, 2.2);
-    this.sprite(pos, new THREE.Color(1.8, 0.7, 0.15), 8 * s, 1.0 * s, 1.8, 0.7);
-    // fireball
-    for (let i = 0; i < 55 * s; i++) {
-      const v = V().randomDirection().multiplyScalar(rand(2, 9) * s);
+    this.sprite(pos, new THREE.Color(1.5, 1.0, 0.6), 4.5 * s, 0.25, 2.2);
+    this.sprite(pos, new THREE.Color(1.2, 0.45, 0.1), 7 * s, 0.9 * s, 1.8, 0.6);
+    // fireball: turbulent puffs that cool from white-gold to deep ember
+    for (let i = 0; i < 28 * s; i++) {
+      const v = V().randomDirection().multiplyScalar(rand(1.5, 8) * s);
       const p = tmp.copy(pos).addScaledVector(v, 0.05);
-      this.add.spawn(p, v, rand(0.5, 1.4) * Math.sqrt(s), rand(1.2, 2.4) * s, rand(2.5, 5) * s, COLORS.fireHot, COLORS.fireDark, 0.45, 0, 3.2, 0.6);
+      this.puffs.spawn(p, v, rand(0.6, 1.5) * Math.sqrt(s), rand(1.4, 2.6) * s, rand(3.2, 6) * s, COLORS.fireHot, COLORS.fireDark, 0.3, 0, 3.0, 0.7);
     }
-    this.sparks(pos, 90 * s, 28 * s, COLORS.spark, 1.1, 0.35 * s);
+    this.streak(pos, new THREE.Color(1.6, 1.0, 0.6), 34 * s, 0.6, 0.45);
+    this.sparks(pos, 70 * s, 28 * s, COLORS.spark, 1.1, 0.3 * s);
     // smoke
     for (let i = 0; i < 26 * s * up; i++) {
       const v = V().randomDirection().multiplyScalar(rand(1, 4) * s);
@@ -340,8 +445,21 @@ class Projectile {
     core.rotation.x = Math.PI / 2; // capsule along z
     const holder = new THREE.Group(); holder.add(core);
     if (kind === 'missile') {
-      core.material = new THREE.MeshStandardMaterial({ color: 0x9aa3ad, metalness: 0.7, roughness: 0.4 });
-      glow.position.z = -this.k.len * 0.8; glow.scale.setScalar(1.4);
+      // body, warhead cone and cruciform fins
+      const steel = new THREE.MeshStandardMaterial({ color: 0xb8c0c8, metalness: 0.75, roughness: 0.35 });
+      const red = new THREE.MeshStandardMaterial({ color: 0xc8202a, metalness: 0.3, roughness: 0.5 });
+      core.geometry.dispose();
+      core.geometry = new THREE.CylinderGeometry(0.11, 0.12, 0.9, 10);
+      core.material = steel;
+      const nose = new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.35, 10), red);
+      nose.position.y = 0.62; core.add(nose);
+      for (let i = 0; i < 4; i++) {
+        const fin = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.22, 0.2), steel);
+        fin.position.set(Math.cos(i * Math.PI / 2) * 0.14, -0.36, Math.sin(i * Math.PI / 2) * 0.14);
+        fin.rotation.y = -i * Math.PI / 2;
+        core.add(fin);
+      }
+      glow.position.z = -0.6; glow.scale.setScalar(1.3);
       holder.add(glow);
     }
     this.holder = holder;

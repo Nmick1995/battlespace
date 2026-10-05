@@ -235,6 +235,11 @@ function cleanupGame() {
   playerGrid.setHover(null); enemyGrid.setHover(null);
   fx.clear();
   $('log').innerHTML = '';
+  // reset leftover UI from the previous engagement
+  $('fleetList').innerHTML = ''; $('enemyList').innerHTML = ''; $('stats').innerHTML = '';
+  $('annText').className = 'ann-text';
+  $('caption').classList.remove('show');
+  S.armed = -1;
 }
 
 async function startGame() {
@@ -306,6 +311,7 @@ function nextPlacement() {
   if (P.ghost) { P.ghost.dispose(); P.ghost = null; }
   P.idx = SHIP_TYPES.findIndex((t) => !S.player.ships.some((s) => s.type === t));
   renderPlaceList();
+  renderPanels();
   $('btnEngage').disabled = P.idx >= 0;
   if (P.idx < 0) { playerGrid.setHover(null); return; }
   P.ghost = new Ship(SHIP_TYPES[P.idx], 'player', fx);
@@ -329,7 +335,7 @@ function renderPlaceList() {
 function nextPlacementFor(i) {
   const P = S.place;
   if (P.ghost) { P.ghost.dispose(); P.ghost = null; }
-  P.idx = i; renderPlaceList();
+  P.idx = i; renderPlaceList(); renderPanels();
   $('btnEngage').disabled = true;
   P.ghost = new Ship(SHIP_TYPES[i], 'player', fx); P.ghost.setOpacity(0.45); P.ghost.root.visible = false; scene.add(P.ghost.root);
   updateGhost();
@@ -387,6 +393,7 @@ $('btnRandom').onclick = () => {
   audio.sfx('place');
   nextPlacement();
 };
+$('btnRotate').onclick = () => { if (S.state === 'placing') rotatePlacement(); };
 $('btnClear').onclick = () => { audio.sfx('click'); for (const s of S.player.ships) s.dispose(); S.player = newBoard(); nextPlacement(); };
 $('btnEngage').onclick = () => { if (S.state === 'placing' && S.place.idx < 0) { audio.sfx('click'); engage(); } };
 
@@ -431,11 +438,11 @@ async function playerFire(r, c) {
   S.stats.shots++;
   const res = resolve(S.enemy, r, c);
   if (res.hit) S.stats.hits++;
-  await firingCinematic(r, c, res);
+  await firingCinematic(r, c, res).catch(cineFailed);
   log(`You fire at ${coord(r, c)} — ${res.hit ? 'HIT' : 'miss'}`, res.hit ? 'hit' : 'you');
   renderPanels();
   if (res.sunk) {
-    await sinkCinematic(res.ship, true);
+    await sinkCinematic(res.ship, true).catch(cineFailed);
     for (const cell of res.ship.cells) { const m = enemyGrid.markers.children.find((g) => g.userData.cell === cell.r * 10 + cell.c); if (m) m.userData.fill.material.color.setRGB(1.2, 0.4, 0.05); }
     log(`Enemy ${res.ship.type.name} "${res.ship.name}" destroyed!`, 'sunk');
     renderPanels();
@@ -455,11 +462,11 @@ async function enemyTurn() {
   const res = resolve(S.player, r, c);
   if (res.hit) S.stats.enemyHits++;
   S.ai.record(r, c, res.sunk ? 'sunk' : res.hit ? 'hit' : 'miss', res.sunk ? res.ship.cells : null, res.sunk ? res.ship.len : 0);
-  await incomingCinematic(r, c, res);
+  await incomingCinematic(r, c, res).catch(cineFailed);
   log(`Enemy fires at ${coord(r, c)} — ${res.hit ? `HIT on ${res.ship.name}` : 'miss'}`, res.hit ? 'hit' : '');
   renderPanels();
   if (res.sunk) {
-    await sinkCinematic(res.ship, false);
+    await sinkCinematic(res.ship, false).catch(cineFailed);
     log(`${res.ship.name} has been lost!`, 'sunk');
     renderPanels();
     if (fleetDead(S.player)) return gameOver(false);
@@ -468,6 +475,14 @@ async function enemyTurn() {
 }
 
 // ------------------------------------------------------------------ cinematics
+// A cinematic must never soft-lock the game: log, restore the camera/HUD, and carry on with the turn.
+function cineFailed(err) {
+  console.error('Cinematic failed:', err);
+  S.slowmo = 1;
+  camFollow(null);
+  setCine(false);
+}
+
 const WEAPON = {
   laser: { n: 6, gap: 0.09, dur: 1.05, s: 0.8, color: 0x55ff77 },
   plasma: { n: 6, gap: 0.13, dur: 1.35, s: 1.1, color: 0xff8a2a },
@@ -501,7 +516,7 @@ function salvo(kind, muzzles, target, { onImpact, onFirst }) {
       fx.muzzle(from, dir, W.color, W.s);
       audio.sfx(kind === 'hostile' ? 'plasma' : kind);
       rig.shake(0.18 * W.s);
-      if (kind === 'railgun') { fx.ring(from, new THREE.Color(0.7, 1.4, 3), 3, 0.5, { normal: dir, thick: 0.06 }); fx.ring(from.clone().addScaledVector(dir, 2), new THREE.Color(0.4, 0.9, 2), 2.2, 0.6, { normal: dir, thick: 0.05 }); rig.shake(1.2); }
+      if (kind === 'railgun') { fx.ring(from, new THREE.Color(0.7, 1.4, 3), 3, 0.5, { normal: dir, thick: 0.06 }); fx.ring(from.clone().addScaledVector(dir, 2), new THREE.Color(0.4, 0.9, 2), 2.2, 0.6, { normal: dir, thick: 0.05 }); fx.streak(from, new THREE.Color(0.8, 1.4, 3), 30, 0.5, 0.8); rig.shake(1.2); }
       const end = target.clone().add(i === 0 ? V() : V(rand(-0.9, 0.9), rand(-0.3, 0.5), rand(-0.9, 0.9)));
       const dist = from.distanceTo(end);
       const ctrl = from.clone().addScaledVector(dir, dist * (kind === 'missile' ? 0.45 : kind === 'hostile' ? 0.2 : 0.3)).lerp(end, kind === 'railgun' ? 0.5 : 0.05);
@@ -630,6 +645,7 @@ async function incomingCinematic(r, c, res) {
         rig.shake(first ? 1.8 : 0.6);
         if (first) {
           flashScreen(0.15, 0.4);
+          fx.shield(res.ship, pt);
           res.ship.damage(res.seg);
           playerGrid.addHit(r, c).userData.fill.material.opacity = 0.25;
           announce('HULL BREACH', 'lost');
@@ -691,16 +707,19 @@ async function sinkCinematic(ship, isEnemy) {
   }
   await wait(0.35);
   // reactor breach
+  // pull back just before the reactor goes so the blast fills, not swallows, the frame
+  await tween(0.45, (k) => { zoom = 1 + 0.6 * k; }, ease.inOut);
   S.slowmo = 0.3;
-  tween(0.9, (k) => { zoom = 1 + 1.1 * k; }, ease.out);
-  fx.flash(center, 0xffffff, 900, 1.5, 120);
-  flashScreen(0.45, 0.8);
-  fx.explosion(center, 1.7);
-  for (let i = 0; i < ship.len; i++) fx.explosion(ship.segWorld(i), 0.6, { noSmoke: true, noDebris: true });
+  tween(0.9, (k) => { zoom = 1.6 + 0.7 * k; }, ease.out);
+  fx.flash(center, 0xffffff, 500, 1.5, 120);
+  flashScreen(0.22, 0.7);
+  fx.explosion(center, 0.9 + ship.len * 0.15);
+  for (let i = 0; i < ship.len; i++) fx.explosion(ship.segWorld(i), 0.45, { noSmoke: true, noDebris: true });
+  fx.streak(center, new THREE.Color(1.4, 1.6, 2.4), len * 6, 1.4, 0.7);
   fx.debris(center, 26, 16, 0.4);
   fx.ring(center, new THREE.Color(4, 3, 2), len * 2.5, 2.2, { thick: 0.03 });
   fx.ring(center, new THREE.Color(2, 3, 5), len * 3.2, 2.8, { thick: 0.015, normal: V(0.2, 1, 0.1) });
-  fx.sprite(center, new THREE.Color(4, 3.2, 2.4), len * 1.1, 0.8, 1.8);
+  fx.sprite(center, new THREE.Color(2.2, 1.8, 1.4), len * 0.8, 0.7, 1.8);
   audio.sfx('sink');
   rig.shake(3);
   ship.breakApart();
@@ -787,21 +806,43 @@ function updateHover() {
   tag.style.display = 'none';
 }
 $('c').addEventListener('pointerdown', (e) => {
+  // always pick from where the pointer is now (touch taps have no prior pointermove)
+  mouse.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  mouseScreen = { x: e.clientX, y: e.clientY };
   if (S.cine) return;
   if (e.button === 2) { if (S.state === 'placing') rotatePlacement(); return; }
   if (e.button !== 0) return;
-  if (S.state === 'placing') placeCurrent();
-  else if (S.state === 'player' && S.view === 'target') { const cell = pickCell(enemyGrid); if (cell) playerFire(cell.r, cell.c); }
-  else if (S.state === 'player' && S.view === 'fleet') goView('target', 1);
+  const touch = e.pointerType === 'touch';
+  if (S.state === 'placing') {
+    if (S.view !== 'fleet') { goView('fleet', 1); return; }
+    const cell = pickCell(playerGrid);
+    const same = cell && S.place.hover && cell.r === S.place.hover.r && cell.c === S.place.hover.c;
+    S.place.hover = cell; updateGhost();
+    if (!touch || same) placeCurrent(); // touch: first tap previews, second tap places
+  } else if (S.state === 'player' && S.view === 'target') {
+    const cell = pickCell(enemyGrid);
+    if (!cell) return;
+    const k = cell.r * 10 + cell.c;
+    if (touch && S.armed !== k) { S.armed = k; return; } // touch: tap to aim, tap again to fire
+    S.armed = -1;
+    playerFire(cell.r, cell.c);
+  } else if (S.state === 'player' && S.view === 'fleet') goView('target', 1);
 });
 addEventListener('contextmenu', (e) => e.preventDefault());
 addEventListener('keydown', (e) => {
-  if (e.code === 'Space') { S.skip = true; e.preventDefault(); }
+  if (e.target.tagName === 'INPUT') return;
+  if (e.code === 'Space') {
+    S.skip = true; e.preventDefault();
+    if (document.activeElement && document.activeElement.tagName === 'BUTTON') document.activeElement.blur();
+  }
+  if (e.repeat) return;
   if (e.code === 'KeyR' && S.state === 'placing') rotatePlacement();
   if (e.code === 'KeyV') toggleView();
   if (e.code === 'KeyM') $('btnMute').click();
 });
 addEventListener('keyup', (e) => { if (e.code === 'Space') S.skip = false; });
+addEventListener('blur', () => { S.skip = false; });
+document.addEventListener('visibilitychange', () => { if (document.hidden) S.skip = false; });
 
 // ------------------------------------------------------------------ splash
 buildParade();

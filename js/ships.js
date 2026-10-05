@@ -154,8 +154,8 @@ function factionMats(f) {
   const tx = textures();
   const glowCol = P ? new THREE.Color(0.5, 1.6, 4) : new THREE.Color(4, 0.8, 0.3);
   MATS[f] = {
-    hull: new THREE.MeshStandardMaterial({ color: P ? 0xd2dbe4 : 0x9a7c80, map: tx.hull, bumpMap: tx.hull, bumpScale: 0.9, metalness: 0.7, roughness: 0.42, emissive: P ? 0xbfe8ff : 0xffa080, emissiveMap: tx.win, emissiveIntensity: 1.6 }),
-    dark: new THREE.MeshStandardMaterial({ color: P ? 0x68717c : 0x51404a, map: tx.hull, bumpMap: tx.hull, bumpScale: 0.6, metalness: 0.85, roughness: 0.32 }),
+    hull: new THREE.MeshStandardMaterial({ color: P ? 0xd2dbe4 : 0x9a7c80, map: tx.hull, bumpMap: tx.hull, bumpScale: 0.9, roughnessMap: tx.hull, metalness: 0.7, roughness: 0.72, emissive: P ? 0xbfe8ff : 0xffa080, emissiveMap: tx.win, emissiveIntensity: 1.6 }),
+    dark: new THREE.MeshStandardMaterial({ color: P ? 0x68717c : 0x51404a, map: tx.hull, bumpMap: tx.hull, bumpScale: 0.6, roughnessMap: tx.hull, metalness: 0.85, roughness: 0.55 }),
     stealth: new THREE.MeshStandardMaterial({ color: P ? 0x4a5462 : 0x3e2d35, map: tx.hull, metalness: 0.45, roughness: 0.62, emissive: P ? 0x70c8ff : 0xff6040, emissiveMap: tx.win, emissiveIntensity: 0.6 }),
     accent: new THREE.MeshStandardMaterial({ color: P ? 0x2f8cff : 0xd4203a, metalness: 0.45, roughness: 0.35, emissive: P ? 0x0c4aa0 : 0x600014, emissiveIntensity: 0.7 }),
     glass: new THREE.MeshStandardMaterial({ color: 0x0b1622, metalness: 1, roughness: 0.06, emissive: P ? 0x3a90ff : 0xff4028, emissiveIntensity: 0.45 }),
@@ -183,6 +183,28 @@ class Builder {
       this.body.add(g); this.segs.push(g);
     }
     this.guns = []; this.engines = []; this.blinkers = []; this.spinners = [];
+    this.decks = [];
+  }
+  // Scatter small surface details (vents, conduits, sensor blocks) across every deck.
+  greeble() {
+    const { dark, hull } = this.m;
+    for (const d of this.decks) {
+      const n = Math.round(this.len * 7 * (d.u1 - d.u0));
+      for (let i = 0; i < n; i++) {
+        const u = d.u0 + 0.04 + Math.random() * (d.u1 - d.u0 - 0.08);
+        const w = d.wFn(u) * 0.78;
+        if (w < 0.2) continue;
+        const x = this.X(u), z = (Math.random() * 2 - 1) * w;
+        const kind = Math.random();
+        if (kind < 0.55) {
+          this.box(rand(0.12, 0.45), rand(0.04, 0.12), rand(0.1, 0.3), Math.random() < 0.6 ? dark : hull, x, d.top + 0.03, z, { r: 0.015, loose: Math.random() < 0.3 });
+        } else if (kind < 0.8) { // conduit run along the hull
+          this.cyl(0.035, 0.035, rand(0.6, 1.6), dark, x, d.top + 0.03, z, { axis: 'x', n: 6 });
+        } else { // vent grille
+          for (let k = 0; k < 4; k++) this.box(0.04, 0.03, 0.26, dark, x + k * 0.07, d.top + 0.02, z, { r: 0 });
+        }
+      }
+    }
   }
   X(u) { return -this.L / 2 + u * this.L; }
   segCenter(i) { return -this.len * CELL / 2 + CELL * (i + 0.5); }
@@ -219,6 +241,7 @@ class Builder {
   }
   // A hull layer defined by a half-width profile along the ship, sliced per segment.
   layer(mat, y, h, wFn, u0 = 0, u1 = 1, bevel = 0.1, zOff = 0) {
+    if (h >= 0.15 && mat !== this.m.accent) this.decks.push({ top: y + h + bevel, wFn, u0, u1 });
     for (let i = 0; i < this.len; i++) {
       const s0 = this.segCenter(i) - CELL / 2, s1 = s0 + CELL;
       const x0 = Math.max(this.X(u0), s0 - 0.01), x1 = Math.min(this.X(u1), s1 + 0.01);
@@ -516,6 +539,7 @@ export class Ship {
     this.name = NAMES[faction][type.id];
     const b = new Builder(type, faction);
     DESIGNS[type.id](b);
+    b.greeble();
     this.root = b.root; this.body = b.body; this.segs = b.segs;
     this.guns = b.guns; this.engines = b.engines; this.blinkers = b.blinkers; this.spinners = b.spinners;
     this.len = type.len;
@@ -714,6 +738,15 @@ export class Ship {
     for (const e of this.emitters) e.dead = true;
     this.root.parent && this.root.parent.remove(this.root);
     for (const s of this.segs) s.parent && s.parent.remove(s);
+    // free GPU memory: per-ship geometry, per-segment material clones, sprite materials
+    // (shared textures and the shared engine-flame shader are kept)
+    const freed = new Set();
+    const free = (o) => {
+      if (o.geometry && !freed.has(o.geometry)) { freed.add(o.geometry); o.geometry.dispose(); }
+      if (o.isSprite && o.material) o.material.dispose();
+    };
+    this.root.traverse(free);
+    for (const s of this.segs) { s.traverse(free); for (const m of s.userData.mats || []) m.dispose(); }
   }
 }
 

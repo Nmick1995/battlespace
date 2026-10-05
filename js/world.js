@@ -5,6 +5,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CELL } from './ships.js';
 import { TEX } from './fx.js';
 import { rand, clamp } from './core.js';
@@ -37,6 +38,7 @@ export class World {
     this.buildLights();
     this.buildPlanet();
     this.buildAsteroids();
+    this.buildDust();
     this.buildEnvMap();
     this.buildPost();
 
@@ -49,6 +51,7 @@ export class World {
     this.camera.aspect = w / h; this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h); this.composer.setSize(w, h);
     this.bloom.setSize(w, h);
+    this.dustMat.uniforms.scale.value = h * this.renderer.getPixelRatio();
     this.onResize && this.onResize(h * this.renderer.getPixelRatio());
   }
 
@@ -119,7 +122,7 @@ export class World {
     this.scene.add(sun, sun.target);
     this.scene.add(new THREE.HemisphereLight(0x8a9cff, 0x3a2010, 1.0));
     this.scene.add(new THREE.AmbientLight(0x223044, 0.6));
-    const rim = new THREE.DirectionalLight(0x6fb8ff, 0.9);
+    const rim = new THREE.DirectionalLight(0x6fb8ff, 1.4);
     rim.position.set(-80, 30, -60);
     this.scene.add(rim);
 
@@ -143,28 +146,33 @@ export class World {
   }
 
   buildPlanet() {
-    // gas giant texture
+    // gas giant texture: turbulent, sheared bands painted per pixel
     const W = 1024, H = 512;
     const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
     const g = cv.getContext('2d');
+    const img = g.createImageData(W, H), D = img.data;
     const bands = [];
-    for (let i = 0; i < 40; i++) bands.push([rand(0, 1), rand(0.01, 0.06), Math.random()]);
+    for (let i = 0; i < 70; i++) bands.push([rand(0, 1), rand(0.005, 0.04), Math.random()]);
+    const pal = [[0.86, 0.66, 0.45], [0.62, 0.42, 0.30], [0.95, 0.85, 0.68], [0.55, 0.36, 0.42], [0.78, 0.55, 0.36]];
     for (let y = 0; y < H; y++) {
-      const v = y / H;
-      let r = 0.55, gg = 0.42, b = 0.36;
-      for (const [c, w, k] of bands) {
-        const d = Math.exp(-Math.pow((v - c) / w, 2));
-        r += d * (k - 0.5) * 0.35; gg += d * (k - 0.5) * 0.25; b += d * (0.5 - k) * 0.2;
-      }
-      for (let x = 0; x < W; x += 4) {
-        const wob = Math.sin(x * 0.02 + y * 0.05) * 0.03 + Math.sin(x * 0.005 + v * 20) * 0.04;
-        g.fillStyle = `rgb(${clamp((r + wob) * 255, 0, 255) | 0},${clamp((gg + wob * 0.8) * 255, 0, 255) | 0},${clamp((b + wob * 0.3) * 255, 0, 255) | 0})`;
-        g.fillRect(x, y, 4, 1);
+      for (let x = 0; x < W; x++) {
+        const u = x / W * Math.PI * 2;
+        // horizontal shear + eddies displace the band lookup
+        const vy = y / H + 0.012 * Math.sin(u * 3 + y * 0.05) + 0.006 * Math.sin(u * 11 - y * 0.13) + 0.004 * Math.sin(u * 23 + y * 0.31);
+        let t = 0;
+        for (const [c, w, k] of bands) t += Math.exp(-Math.pow((vy - c) / w, 2)) * (k - 0.5);
+        const idx = Math.abs(Math.floor(vy * 9)) % pal.length, nxt = (idx + 1) % pal.length, fr = vy * 9 - Math.floor(vy * 9);
+        const base = pal[idx].map((v, j) => v + (pal[nxt][j] - v) * fr);
+        const lum = 1 + t * 0.45;
+        const o = (y * W + x) * 4;
+        D[o] = clamp(base[0] * lum * 255, 0, 255); D[o + 1] = clamp(base[1] * lum * 255, 0, 255); D[o + 2] = clamp(base[2] * lum * 255, 0, 255); D[o + 3] = 255;
       }
     }
-    // storm
-    g.fillStyle = 'rgba(200,110,70,0.6)'; g.beginPath(); g.ellipse(W * 0.62, H * 0.62, 38, 18, 0, 0, 7); g.fill();
-    g.fillStyle = 'rgba(240,170,120,0.5)'; g.beginPath(); g.ellipse(W * 0.62, H * 0.62, 22, 10, 0, 0, 7); g.fill();
+    g.putImageData(img, 0, 0);
+    // storms
+    for (const [sx, sy, rw, rh, col] of [[0.62, 0.62, 40, 18, '200,110,70'], [0.25, 0.38, 22, 9, '240,220,190'], [0.82, 0.3, 14, 6, '235,215,185']]) {
+      for (let k = 3; k > 0; k--) { g.fillStyle = `rgba(${col},${0.25 * k / 3 + 0.15})`; g.beginPath(); g.ellipse(W * sx, H * sy, rw * k / 3 + 4, rh * k / 3 + 2, 0, 0, 7); g.fill(); }
+    }
     const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
     const planet = new THREE.Mesh(new THREE.SphereGeometry(420, 96, 64), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.95, metalness: 0 }));
     planet.position.set(-900, -380, -1900);
@@ -173,7 +181,7 @@ export class World {
     const atm = new THREE.Mesh(new THREE.SphereGeometry(445, 64, 48), new THREE.ShaderMaterial({
       uniforms: { sun: { value: this.sunDir } },
       vertexShader: `varying vec3 vN; varying vec3 vV; varying vec3 vW; void main(){ vN = normalize(mat3(modelMatrix)*normal); vec4 w = modelMatrix*vec4(position,1.0); vW = w.xyz; vV = normalize(cameraPosition - w.xyz); gl_Position = projectionMatrix*viewMatrix*w; }`,
-      fragmentShader: `uniform vec3 sun; varying vec3 vN; varying vec3 vV; void main(){ float f = pow(1.0 - abs(dot(vN, vV)), 3.0); float l = clamp(dot(vN, sun)*0.8+0.4, 0.0, 1.0); vec3 c = vec3(0.35,0.65,1.0)*f*l*2.5; gl_FragColor = vec4(c, f); }`,
+      fragmentShader: `uniform vec3 sun; varying vec3 vN; varying vec3 vV; void main(){ float f = pow(1.0 - abs(dot(vN, vV)), 4.0); float l = clamp(dot(vN, sun)*0.9+0.25, 0.0, 1.0); vec3 c = mix(vec3(0.25,0.5,1.0), vec3(1.0,0.75,0.5), pow(l,3.0)*0.4)*f*l*1.4; gl_FragColor = vec4(c, f*0.8); }`,
       side: THREE.BackSide, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false,
     }));
     planet.add(atm);
@@ -192,39 +200,120 @@ export class World {
   }
 
   buildAsteroids() {
-    const geo = new THREE.IcosahedronGeometry(1, 1);
-    const p = geo.attributes.position;
-    for (let i = 0; i < p.count; i++) { const v = new THREE.Vector3().fromBufferAttribute(p, i); v.multiplyScalar(0.75 + Math.random() * 0.45); p.setXYZ(i, v.x, v.y, v.z); }
-    geo.computeVertexNormals();
-    const mat = new THREE.MeshStandardMaterial({ color: 0x5a4c44, roughness: 0.95, metalness: 0.05, flatShading: true });
+    // cheap 3D value noise for displacement
+    const h = (x, y, z) => { const n = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453; return n - Math.floor(n); };
+    const vn = (x, y, z) => {
+      const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z), xf = x - xi, yf = y - yi, zf = z - zi;
+      const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf), w = zf * zf * (3 - 2 * zf);
+      const l = (a, b, t) => a + (b - a) * t;
+      return l(l(l(h(xi, yi, zi), h(xi + 1, yi, zi), u), l(h(xi, yi + 1, zi), h(xi + 1, yi + 1, zi), u), v),
+               l(l(h(xi, yi, zi + 1), h(xi + 1, yi, zi + 1), u), l(h(xi, yi + 1, zi + 1), h(xi + 1, yi + 1, zi + 1), u), v), w);
+    };
+    const makeRock = (seed, stretch) => {
+      const raw = new THREE.IcosahedronGeometry(1, 3);
+      raw.deleteAttribute('normal'); raw.deleteAttribute('uv');
+      const geo = mergeVertices(raw); // shared vertices -> smooth normals
+      const p = geo.attributes.position, col = new Float32Array(p.count * 3), v = new THREE.Vector3();
+      for (let i = 0; i < p.count; i++) {
+        v.fromBufferAttribute(p, i);
+        let d = 0, f = 1.4, amp = 0.34;
+        for (let o = 0; o < 6; o++) { d += (vn(v.x * f + seed, v.y * f + seed * 2, v.z * f - seed) - 0.5) * amp; f *= 2.2; amp *= 0.58; }
+        // ridged layer for sharp crags
+        d += (0.5 - Math.abs(vn(v.x * 5 + seed, v.y * 5, v.z * 5) - 0.5)) * 0.07;
+        // craters: a couple of soft dents
+        const crater = Math.max(0, 1 - v.distanceTo(new THREE.Vector3(Math.sin(seed), Math.cos(seed * 1.7), Math.sin(seed * 2.3)).normalize()) * 2.2);
+        d -= crater * crater * 0.18;
+        v.multiplyScalar(1 + d).multiply(stretch);
+        p.setXYZ(i, v.x, v.y, v.z);
+        const shade = Math.max(0.15, 0.6 + d * 2.4); // crevices darker, ridges lighter
+        col.set([shade, shade * 0.95, shade * 0.9], i * 3);
+      }
+      geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      geo.computeVertexNormals();
+      return geo;
+    };
+    const mat = new THREE.MeshStandardMaterial({ color: 0x8a7c72, roughness: 0.92, metalness: 0.08, vertexColors: true });
+    // per-pixel procedural rock detail: fbm bump + mottled albedo, computed in object space
+    mat.onBeforeCompile = (sh) => {
+      sh.vertexShader = sh.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vObj;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvObj = position;');
+      sh.fragmentShader = sh.fragmentShader
+        .replace('#include <common>', `#include <common>
+          varying vec3 vObj;
+          ${NOISE_GLSL}
+          vec3 rockPerturb(vec3 surf_pos, vec3 surf_norm, vec2 dHdxy, float faceDirection) {
+            vec3 vSigmaX = dFdx(surf_pos.xyz); vec3 vSigmaY = dFdy(surf_pos.xyz); vec3 vN = surf_norm;
+            vec3 R1 = cross(vSigmaY, vN); vec3 R2 = cross(vN, vSigmaX);
+            float fDet = dot(vSigmaX, R1) * faceDirection;
+            vec3 vGrad = sign(fDet) * (dHdxy.x * R1 + dHdxy.y * R2);
+            return normalize(abs(fDet) * surf_norm - vGrad);
+          }`)
+        .replace('#include <color_fragment>', `#include <color_fragment>
+          float mott = fbm(vObj*3.0);
+          diffuseColor.rgb *= 0.7 + 0.6*mott;`)
+        .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+          // fade fine detail with screen-space footprint so distant rocks don't sparkle/alias
+          float lod = length(fwidth(vObj));
+          float nearF = 1.0 - smoothstep(0.006, 0.03, lod);
+          float midF = 1.0 - smoothstep(0.015, 0.09, lod);
+          float hgt = fbm(vObj*6.0)*midF + 0.5*fbm(vObj*17.0)*nearF;
+          normal = rockPerturb(-vViewPosition, normal, vec2(dFdx(hgt), dFdy(hgt))*2.2, faceDirection);`);
+    };
+    const variants = [makeRock(1.3, new THREE.Vector3(1, 0.8, 0.9)), makeRock(4.7, new THREE.Vector3(1.3, 0.7, 0.8)), makeRock(8.1, new THREE.Vector3(0.9, 0.9, 1))];
     const N = 420;
-    const inst = new THREE.InstancedMesh(geo, mat, N);
     this.rocks = [];
-    const m = new THREE.Matrix4();
+    this.asteroidMeshes = variants.map((g) => { const m = new THREE.InstancedMesh(g, mat, Math.ceil(N / 3)); m.frustumCulled = false; this.scene.add(m); return m; });
+    const c = new THREE.Color();
     for (let i = 0; i < N; i++) {
       const a = Math.random() * Math.PI * 2, rr = rand(140, 330);
       const r = {
         pos: new THREE.Vector3(Math.cos(a) * rr, rand(-50, 15) - (rr > 200 ? 20 : 0), Math.sin(a) * rr),
         rot: new THREE.Euler(rand(0, 6), rand(0, 6), rand(0, 6)), spin: new THREE.Vector3(rand(-0.3, 0.3), rand(-0.3, 0.3), rand(-0.3, 0.3)),
-        s: Math.pow(Math.random(), 3) * 7 + 0.6,
+        s: Math.pow(Math.random(), 3) * 7 + 0.6, mesh: this.asteroidMeshes[i % 3], idx: Math.floor(i / 3),
       };
+      c.setHSL(rand(0.04, 0.09), rand(0.08, 0.25), rand(0.32, 0.6));
+      r.mesh.setColorAt(r.idx, c);
       this.rocks.push(r);
     }
-    inst.castShadow = false; inst.receiveShadow = false;
-    this.asteroids = inst;
-    this.scene.add(inst);
     this.updateRocks(0);
   }
   updateRocks(dt) {
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3();
-    this.rocks.forEach((r, i) => {
+    const ang = dt * 0.004, c = Math.cos(ang), sn = Math.sin(ang);
+    for (const r of this.rocks) {
       r.rot.x += r.spin.x * dt; r.rot.y += r.spin.y * dt; r.rot.z += r.spin.z * dt;
-      const ang = dt * 0.004; const c = Math.cos(ang), sn = Math.sin(ang);
       const x = r.pos.x * c - r.pos.z * sn; r.pos.z = r.pos.x * sn + r.pos.z * c; r.pos.x = x;
       m.compose(r.pos, q.setFromEuler(r.rot), s.setScalar(r.s));
-      this.asteroids.setMatrixAt(i, m);
+      r.mesh.setMatrixAt(r.idx, m);
+    }
+    for (const am of this.asteroidMeshes) am.instanceMatrix.needsUpdate = true;
+  }
+
+  // Fine motes drifting through the battlespace: parallax that sells depth in close-ups.
+  buildDust() {
+    const N = 2200, pos = new Float32Array(N * 3), ph = new Float32Array(N);
+    for (let i = 0; i < N; i++) { pos.set([rand(-90, 90), rand(-25, 45), rand(-95, 95)], i * 3); ph[i] = Math.random() * 100; }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    g.setAttribute('phase', new THREE.BufferAttribute(ph, 1));
+    this.dustMat = new THREE.ShaderMaterial({
+      uniforms: { time: { value: 0 }, scale: { value: innerHeight * this.renderer.getPixelRatio() } },
+      vertexShader: `attribute float phase; uniform float time; uniform float scale; varying float vA;
+        void main(){
+          vec3 p = position + vec3(sin(time*0.05+phase)*3.0, sin(time*0.07+phase*1.3)*2.0, cos(time*0.04+phase)*3.0);
+          vec4 mv = modelViewMatrix*vec4(p,1.0);
+          float d = -mv.z;
+          gl_PointSize = clamp(0.09*scale/d, 1.0, 5.0);
+          vA = smoothstep(2.0, 10.0, d) * (1.0 - smoothstep(60.0, 140.0, d)) * (0.5 + 0.5*sin(time*0.8+phase));
+          gl_Position = projectionMatrix*mv;
+        }`,
+      fragmentShader: `varying float vA; void main(){ float d = length(gl_PointCoord-0.5); float a = smoothstep(0.5, 0.0, d)*vA*0.55; gl_FragColor = vec4(vec3(0.7,0.85,1.0)*a, a); }`,
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
     });
-    this.asteroids.instanceMatrix.needsUpdate = true;
+    const pts = new THREE.Points(g, this.dustMat);
+    pts.frustumCulled = false;
+    this.scene.add(pts);
   }
 
   buildEnvMap() {
@@ -238,7 +327,7 @@ export class World {
     const low = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.25, 0.12, 0.05), side: THREE.DoubleSide }));
     low.position.set(0, -60, 0); low.rotation.x = Math.PI / 2; envScene.add(low);
     this.scene.environment = pm.fromScene(envScene, 0.02).texture;
-    this.scene.environmentIntensity = 0.9;
+    this.scene.environmentIntensity = 1.25;
   }
 
   buildPost() {
@@ -279,6 +368,7 @@ export class World {
   render(dt, t) {
     this.skyMat.uniforms.time.value = t;
     this.starMat.uniforms.time.value = t;
+    this.dustMat.uniforms.time.value = t;
     this.cine.uniforms.time.value = t % 100;
     this.planet.rotation.y += dt * 0.004;
     this.updateRocks(dt);
@@ -380,7 +470,13 @@ export class Grid {
     if (color) this.mat.uniforms.hoverColor.value.copy(color);
   }
 
-  clearMarkers() { while (this.markers.children.length) this.markers.remove(this.markers.children[0]); }
+  clearMarkers() {
+    while (this.markers.children.length) {
+      const m = this.markers.children[0];
+      m.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
+      this.markers.remove(m);
+    }
+  }
 
   addMiss(r, c) {
     const g = new THREE.Group();
