@@ -65,7 +65,8 @@ export class World {
           float n1 = fbm(d*2.3 + vec3(0.0, 0.0, time*0.003));
           float n2 = fbm(d*4.1 + 11.0);
           float n3 = fbm(d*9.0 - 3.0);
-          float band = exp(-pow(d.y*1.8 + 0.35*(n1-0.5) + 0.15, 2.0)*4.0);
+          float bx = d.y*1.8 + 0.35*(n1-0.5) + 0.15;
+          float band = exp(-bx*bx*4.0);
           vec3 purple = vec3(0.30,0.06,0.50), teal = vec3(0.03,0.28,0.50), orange = vec3(0.85,0.30,0.12);
           vec3 col = mix(purple, teal, smoothstep(0.35,0.65,n2)) * pow(n1, 2.6) * 2.2 * (0.25 + band);
           col += orange * pow(max(0.0, n2-0.52), 1.6) * 2.4 * band * n1;
@@ -181,7 +182,7 @@ export class World {
     const atm = new THREE.Mesh(new THREE.SphereGeometry(445, 64, 48), new THREE.ShaderMaterial({
       uniforms: { sun: { value: this.sunDir } },
       vertexShader: `varying vec3 vN; varying vec3 vV; varying vec3 vW; void main(){ vN = normalize(mat3(modelMatrix)*normal); vec4 w = modelMatrix*vec4(position,1.0); vW = w.xyz; vV = normalize(cameraPosition - w.xyz); gl_Position = projectionMatrix*viewMatrix*w; }`,
-      fragmentShader: `uniform vec3 sun; varying vec3 vN; varying vec3 vV; void main(){ float f = pow(1.0 - abs(dot(vN, vV)), 4.0); float l = clamp(dot(vN, sun)*0.9+0.25, 0.0, 1.0); vec3 c = mix(vec3(0.25,0.5,1.0), vec3(1.0,0.75,0.5), pow(l,3.0)*0.4)*f*l*1.4; gl_FragColor = vec4(c, f*0.8); }`,
+      fragmentShader: `uniform vec3 sun; varying vec3 vN; varying vec3 vV; void main(){ float f = pow(max(0.0, 1.0 - abs(dot(vN, vV))), 4.0); float l = clamp(dot(vN, sun)*0.9+0.25, 0.0, 1.0); vec3 c = mix(vec3(0.25,0.5,1.0), vec3(1.0,0.75,0.5), pow(l,3.0)*0.4)*f*l*1.4; gl_FragColor = vec4(c, f*0.8); }`,
       side: THREE.BackSide, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false,
     }));
     planet.add(atm);
@@ -402,7 +403,8 @@ export class Grid {
           vec2 e = min(vUv, 1.0-vUv);
           float border = 1.0 - smoothstep(0.0, fwidth(vUv.x)*3.0, min(e.x, e.y) - 0.002);
           float cross = step(abs(f.x-0.5), 0.03) * step(abs(f.y-0.5), 0.12) + step(abs(f.y-0.5), 0.03) * step(abs(f.x-0.5), 0.12);
-          float sweep = exp(-pow((vUv.y - fract(time*0.08))*30.0, 2.0));
+          float sx = (vUv.y - fract(time*0.08))*30.0;
+          float sweep = exp(-sx*sx);
           vec2 cell = floor(g);
           vec2 hv = step(hover, cell) * step(cell, hover + hoverSize - 1.0);
           float hov = hv.x*hv.y;

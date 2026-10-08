@@ -158,6 +158,16 @@ Some implementation details:
 
 Built with [Three.js](https://threejs.org/) and plain ES modules. There's no build step.
 
+## Patch notes
+
+**2026-10-07**
+- Fixed a black oval that could appear around your ships for a second or two after they were hit. The shield-flare shader produced invalid values on some GPUs (notably Chrome and Edge on Windows), which rendered as black.
+- Fixed the same kind of rendering glitch in shockwave rings, the nebula and the radar sweep.
+
+**2026-10-05**
+- Fixed input and memory bugs.
+- Upgraded explosions, asteroids, the planet and shield effects.
+
 ## Contributing
 
 Issues and pull requests are welcome. Some ideas:

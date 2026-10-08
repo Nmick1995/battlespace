@@ -78,7 +78,8 @@ const shockMat = (color, opacity, thick) => new THREE.ShaderMaterial({
       float ang = atan(vUv.y, vUv.x);
       float wob = 0.012*sin(ang*7.0+seed) + 0.008*sin(ang*13.0-seed*2.0);
       float w = max(thick*0.5, 0.015);
-      float band = exp(-pow((d - (0.94 - w) + wob)/w, 2.0));
+      float x = (d - (0.94 - w) + wob)/w;
+      float band = exp(-x*x);
       float haze = smoothstep(1.0, 0.0, d) * 0.12;
       float a = (band + haze) * opacity * step(d, 1.0);
       gl_FragColor = vec4(color*a, a);
@@ -298,12 +299,13 @@ export class FX {
         void main(){ vL = position; vec4 w = modelMatrix*vec4(position,1.0); vN = normalize(mat3(modelMatrix)*normal); vV = normalize(cameraPosition - w.xyz); gl_Position = projectionMatrix*viewMatrix*w; }`,
       fragmentShader: `uniform float t; uniform vec3 impact; uniform vec3 color; varying vec3 vN; varying vec3 vV; varying vec3 vL;
         void main(){
-          float fres = pow(1.0 - abs(dot(vN, vV)), 2.5);
+          float fres = pow(max(0.0, 1.0 - abs(dot(vN, vV))), 2.5);
           vec2 hp = vec2(atan(vL.z, vL.x)*6.0, vL.y*10.0);
           vec2 hf = abs(fract(hp + vec2(0.0, floor(hp.x)*0.5)) - 0.5);
           float hex = smoothstep(0.42, 0.5, max(hf.x*1.5, hf.y + hf.x*0.6));
           float d = distance(normalize(vL), normalize(impact));
-          float wave = exp(-pow((d - t*2.4)*5.0, 2.0));
+          float wx = (d - t*2.4)*5.0; // pow() is undefined for negative bases (NaN -> black on ANGLE)
+          float wave = exp(-wx*wx);
           float core = exp(-d*6.0) * (1.0 - t);
           float fade = 1.0 - t;
           float a = (fres*0.8 + hex*0.6*wave + wave*0.9 + core*1.5) * fade;
