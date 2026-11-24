@@ -1,6 +1,6 @@
 {
   "name": "battlespace",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "description": "Cinematic 3D space Battleship for the browser — procedural starships, per-section damage and a synthesized choir soundtrack.",
   "license": "MIT",

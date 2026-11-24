@@ -472,27 +472,98 @@ export class Grid {
     if (color) this.mat.uniforms.hoverColor.value.copy(color);
   }
 
-  clearMarkers() {
-    while (this.markers.children.length) {
-      const m = this.markers.children[0];
-      m.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
-      this.markers.remove(m);
+  // Highlighted cells for multi-cell targeting. Each named set keeps its own pool of tiles.
+  setTiles(name, cells, color) {
+    if (!this.tiles) {
+      this.tiles = {};
+      this.tileFrame = new THREE.RingGeometry(CELL * 0.6, CELL * 0.66, 4, 1, Math.PI / 4);
+      this.tileFill = new THREE.PlaneGeometry(CELL * 0.86, CELL * 0.86);
     }
+    let set = this.tiles[name];
+    if (!set) {
+      const mk = (opacity) => new THREE.MeshBasicMaterial({ transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, side: THREE.DoubleSide });
+      set = this.tiles[name] = { list: [], frame: mk(0.95), fill: mk(0.16) };
+    }
+    if (color) { set.frame.color.copy(color); set.fill.color.copy(color); }
+    const list = cells || [];
+    while (set.list.length < list.length) {
+      const g = new THREE.Group();
+      const a = new THREE.Mesh(this.tileFrame, set.frame), b = new THREE.Mesh(this.tileFill, set.fill);
+      a.rotation.x = b.rotation.x = -Math.PI / 2; a.renderOrder = b.renderOrder = 2;
+      g.add(a, b); this.group.add(g); set.list.push(g);
+    }
+    set.list.forEach((g, i) => {
+      g.visible = i < list.length;
+      if (g.visible) g.position.copy(this.cellToWorld(list[i].r, list[i].c, 0.09)).sub(this.center);
+    });
   }
 
-  addMiss(r, c) {
+  disposeMarker(m) {
+    // label textures are per-marker; every other map is shared and must be kept
+    m.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) { if (o === m.userData.label) o.material.map.dispose(); o.material.dispose(); } });
+    this.markers.remove(m);
+  }
+
+  clearMarkers() {
+    while (this.markers.children.length) this.disposeMarker(this.markers.children[0]);
+    if (this.tiles) for (const name of Object.keys(this.tiles)) this.setTiles(name, null);
+  }
+
+  // The hit, miss or contact marker on a cell, if any.
+  markerAt(r, c, kind) { return this.markers.children.find((m) => m.userData.cell === r * 10 + c && (!kind || m.userData.kind === kind)); }
+
+  addMiss(r, c, dim = false) {
     const g = new THREE.Group();
-    const m = new THREE.Mesh(new THREE.RingGeometry(0.75, 0.95, 40), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.4, 1.4, 2.2), transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+    const m = new THREE.Mesh(new THREE.RingGeometry(0.75, 0.95, 40), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.4, 1.4, 2.2), transparent: true, opacity: dim ? 0.4 : 0.8, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
     m.rotation.x = -Math.PI / 2;
-    const d = new THREE.Mesh(new THREE.CircleGeometry(0.22, 16), m.material); d.rotation.x = -Math.PI / 2;
-    g.add(m, d);
+    g.add(m);
+    if (!dim) { const d = new THREE.Mesh(new THREE.CircleGeometry(0.22, 16), m.material); d.rotation.x = -Math.PI / 2; g.add(d); }
     g.position.copy(this.cellToWorld(r, c, 0.05)).sub(this.center);
+    g.userData.cell = r * 10 + c; g.userData.kind = 'miss';
     this.markers.add(g);
     return g;
   }
 
+  // Sensor contact: an intact ship section is known to be on this cell.
+  addContact(r, c) {
+    const g = new THREE.Group();
+    const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color(3.2, 1.9, 0.4), transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, side: THREE.DoubleSide });
+    const frame = new THREE.Mesh(new THREE.RingGeometry(1.25, 1.5, 4, 1, 0), mat); frame.rotation.x = -Math.PI / 2;
+    const dot = new THREE.Mesh(new THREE.CircleGeometry(0.3, 4), mat); dot.rotation.x = -Math.PI / 2;
+    g.add(frame, dot);
+    g.position.copy(this.cellToWorld(r, c, 0.07)).sub(this.center);
+    g.userData.cell = r * 10 + c; g.userData.kind = 'contact'; g.userData.pulse = frame;
+    this.markers.add(g);
+    return g;
+  }
+
+  // Recon Sweep result: a frame around the 3×3 area with the number of intact sections inside.
+  addScan(r0, c0, count) {
+    const g = new THREE.Group();
+    const half = CELL * 1.5 - 0.12;
+    const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.6, 1.6, 0.35), transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, side: THREE.DoubleSide });
+    const frame = new THREE.Mesh(new THREE.RingGeometry((half - 0.16) * Math.SQRT2, half * Math.SQRT2, 4, 1, Math.PI / 4), mat);
+    frame.rotation.x = -Math.PI / 2;
+    g.add(frame);
+    g.position.copy(this.cellToWorld(r0 + 1, c0 + 1, 0.1)).sub(this.center);
+    g.userData.kind = 'scan'; g.userData.cell = -1;
+    this.markers.add(g);
+    this.setScanCount(g, count);
+    return g;
+  }
+  setScanCount(g, count) {
+    const old = g.userData.label;
+    if (old) { old.material.map.dispose(); old.material.dispose(); old.geometry.dispose(); g.remove(old); }
+    const l = this.label(String(count), '#ffb347');
+    l.scale.set(2.0, 2.0, 1);
+    l.position.set(-CELL * 1.5 + 0.2, 0.3, -CELL * 1.5 + 0.2);
+    l.renderOrder = 5;
+    g.add(l); g.userData.label = l;
+  }
+
   addHit(r, c) {
     const g = new THREE.Group();
+    g.userData.cell = r * 10 + c; g.userData.kind = 'hit';
     const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color(4, 0.5, 0.2), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
     const fill = new THREE.Mesh(new THREE.PlaneGeometry(CELL * 0.92, CELL * 0.92), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.9, 0.08, 0.02), transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false }));
     fill.rotation.x = -Math.PI / 2;
@@ -516,7 +587,9 @@ export class Grid {
         m.userData.ember.material.opacity = (0.55 + 0.35 * Math.sin(t * 6 + m.position.x)) * (m.userData.dim ? 0.2 : 1);
         m.userData.ember.scale.setScalar(2.6 + 0.4 * Math.sin(t * 4 + m.position.z));
       }
+      if (m.userData.pulse) m.userData.pulse.scale.setScalar(1 + 0.12 * Math.sin(t * 5 + m.position.x));
     }
+    if (this.tiles) for (const set of Object.values(this.tiles)) set.frame.opacity = 0.75 + 0.2 * Math.sin(t * 7);
   }
 }
 

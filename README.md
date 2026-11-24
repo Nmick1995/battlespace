@@ -36,11 +36,14 @@ The rules are the classic ones. The rest is space opera.
   | Phantom Stealth Frigate | 3 | Void torpedoes | Spiraling violet torpedoes |
   | Lancer Destroyer | 2 | Pulse lasers | Quick green bursts from pods on the wingtips |
 
+- **Three battle modes.** Tactical gives every ship an ability that costs Energy. Salvo gives you one shot per surviving ship each turn. Classic is one shot per turn with no abilities.
+- **Ship abilities.** Recon Sweep, Plasma Barrage, Railgun Lance, Void Torpedo and Rapid Fire. You lose an ability when its ship is destroyed, and the enemy uses the same abilities against you.
+- **A service record.** Wins, best scores, win streaks and your rank are saved in your browser, along with your settings.
 - **Damage by section.** Every grid cell a ship covers is its own section. A hit section chars and glows with molten cracks, catches fire and smokes, sparks, loses its lights, engines and turrets, and sheds loose parts.
 - **Cinematics for everything.** Firing shots, chase cams, impact cuts, incoming-fire warnings and ship destruction, all with letterboxing, film grain, chromatic aberration, slow motion and screen shake. Hold `Space` to fast-forward.
 - **Nothing gives away enemy positions.** Enemy ships stay invisible until they sink. Enemy fire comes from off-screen, so it never reveals where their fleet is.
 - **An original generated soundtrack.** Menu music is Gregorian-style chant with an organum choir, full choir chords, taiko drums and string ostinatos. In-game music is a quieter, tense ambient version. Every sound effect is synthesized live with the Web Audio API.
-- **Three AI threat levels.** Cadet, Commander and Admiral. Admiral scores every legal placement of your remaining ships and fires at the most likely cell.
+- **Three AI threat levels.** Cadet, Commander and Admiral. Admiral scores every legal placement of your remaining ships and fires at the most likely cell. All three use abilities in Tactical mode and fire full salvos in Salvo mode.
 - **Failing shields.** Your ships' shields flare with a hex-pattern ripple at the point of impact before the hull breaks.
 - **A living backdrop.** Procedural nebula, a banded gas giant with rings and an atmosphere, cratered asteroids with per-pixel rock detail, drifting space dust, and HDR bloom.
 
@@ -105,13 +108,37 @@ Use headphones. The soundtrack is half the experience.
 
 ## Rules of engagement
 
-BattleSpace follows the classic rules of Battleship.
+BattleSpace follows the classic rules of Battleship. The battle mode you pick on the main menu changes what you can do on your turn.
 
 1. **Deploy.** Each side places five ships on its own 10×10 grid: Carrier (5), Battleship (4), Cruiser (3), Stealth Frigate (3, the classic "submarine"), and Destroyer (2). Ships go horizontally or vertically. They can't be placed diagonally or overlap.
-2. **Fire.** Players take turns firing one salvo at a coordinate on the enemy's grid, such as `C7`.
+2. **Fire.** Players take turns firing at cells on the enemy's grid, such as `C7`. The battle mode sets how many shots you get.
 3. **Report.** Each shot is called as a hit or a miss. Hits are marked in red and misses in cyan, so you never waste a shot.
 4. **Sink.** When every section of a ship has been hit, the ship is destroyed and its class is announced.
 5. **Win.** The first commander to destroy the entire enemy fleet wins.
+
+### Battle modes
+
+| Mode | Shots per turn | Abilities |
+|---|---|---|
+| **Tactical** (default) | 1 | Yes, paid for with Energy |
+| **Salvo** | 1 for each of your ships that is not destroyed | No |
+| **Classic** | 1 | No |
+
+### Tactical abilities
+
+You start with 1 Energy. You gain 1 at the start of each of your turns and 1 for each hit, up to a maximum of 8. You can use one ability per turn. Each ability belongs to one ship and is lost when that ship is destroyed. The enemy has the same abilities and the same Energy rules.
+
+| Key | Ability | Ship | Cost | Effect |
+|---|---|---|---|---|
+| `1` | Recon Sweep | Carrier | 3 | Scans a 3×3 area and shows how many intact ship sections are inside. You still fire 1 shot that turn. The number on the grid goes down as you hit those sections. An area with 0 left is marked as empty. |
+| `2` | Plasma Barrage | Battleship | 4 | Fires at 5 cells in a plus pattern. |
+| `3` | Railgun Lance | Cruiser | 5 | Fires down a full row or column. The slug stops at the first intact ship section. Every cell it passes is marked as a miss. |
+| `4` | Void Torpedo | Stealth Frigate | 3 | Fires at 1 cell. On a hit, the 4 adjacent cells are revealed as ship or empty. |
+| `5` | Rapid Fire | Destroyer | 2 | Fires at 2 cells of your choice. |
+
+### Score and rank
+
+A win scores 100 for each of your ship sections that is still intact, 20 for each point of accuracy, and 25 for each turn under 60. A loss scores 30 for each enemy section you hit. Commander multiplies the score by 1.5 and Admiral by 2. Each win also earns rank points: 1 on Cadet, 2 on Commander, 3 on Admiral. Your record is stored in your browser only. You can reset it from **Service Record** on the main menu.
 
 ### Controls
 
@@ -120,10 +147,14 @@ BattleSpace follows the classic rules of Battleship.
 | Place ship | Left click |
 | Rotate ship | `R`, right click, or the **ROTATE** button |
 | Fire | Left click on the hostile grid |
+| Select an ability (Tactical) | `1`–`5`, or click it in the bar at the bottom |
+| Cancel an ability or clear selected cells | `Esc` |
+| Change Railgun Lance direction | `R`, right click, or the **ROTATE** button |
+| Fire selected cells (Salvo, Rapid Fire) | `Enter`, `F`, or the **FIRE** button |
 | Toggle fleet / target view | `V` |
 | Fast-forward a cinematic | Hold `Space` |
 | Mute | `M` |
-| Touch screens | Tap a cell to preview, tap it again to place or fire. Use the **ROTATE** button. |
+| Touch screens | Tap a cell to preview, tap it again to place, fire or select it. Use the **ROTATE** and **FIRE** buttons. |
 
 ### Threat levels
 
@@ -133,7 +164,7 @@ BattleSpace follows the classic rules of Battleship.
 | **Commander** | Hunt & target with checkerboard parity | ~51 |
 | **Admiral** | Probability density over every legal remaining ship placement | ~44 |
 
-<sub>*Measured over 200 simulated games per level.</sub>
+<sub>*Classic mode, measured over 200 simulated games per level. With abilities in Tactical mode the same levels need about 43, 30 and 28 turns.</sub>
 
 ## How it's made
 
@@ -146,7 +177,9 @@ Everything you see and hear is generated at runtime. The repository contains no 
 | [`js/fx.js`](js/fx.js) | GPU particle system, explosions, shockwaves, debris and projectiles |
 | [`js/world.js`](js/world.js) | Renderer, bloom and film post-processing, nebula shader, planet, asteroids, holographic grids and the camera rig |
 | [`js/audio.js`](js/audio.js) | Web Audio soundtrack (formant-filtered choir, taiko, strings, brass) and all sound effects |
-| [`js/ai.js`](js/ai.js) | The three opponent AIs |
+| [`js/ai.js`](js/ai.js) | The three opponent AIs, including ability and salvo targeting |
+| [`js/rules.js`](js/rules.js) | Battle modes, ability definitions, cell patterns, scoring and ranks |
+| [`js/store.js`](js/store.js) | Saved settings and service record (`localStorage`) |
 | [`js/core.js`](js/core.js) | Game-time tween/sequence engine, which is what lets cinematics fast-forward |
 
 Some implementation details:
@@ -160,6 +193,14 @@ Built with [Three.js](https://threejs.org/) and plain ES modules. There's no bui
 
 ## Patch notes
 
+**2026-11-23**
+- Added battle modes: Tactical (new default), Salvo and Classic.
+- Added Energy and five ship abilities in Tactical mode: Recon Sweep, Plasma Barrage, Railgun Lance, Void Torpedo and Rapid Fire. The AI uses them too.
+- Added cinematics for multi-cell attacks: fleet salvos, barrages and the lance.
+- Added a service record with ranks, best scores and win streaks. Settings are now saved between visits.
+- Added a score, enemy accuracy and record results to the end-of-battle screen.
+- Fixed the Commander AI treating a hit in column 10 as adjacent to column 1 of the next row.
+
 **2026-10-07**
 - Fixed a black oval that could appear around your ships for a second or two after they were hit. The shield-flare shader produced invalid values on some GPUs (notably Chrome and Edge on Windows), which rendered as black.
 - Fixed the same kind of rendering glitch in shockwave rings, the nebula and the radar sweep.
@@ -172,7 +213,6 @@ Built with [Three.js](https://threejs.org/) and plain ES modules. There's no bui
 
 Issues and pull requests are welcome. Some ideas:
 
-- The **Salvo** variant, where you get one shot per surviving ship each turn
 - Local two-player hot-seat mode
 - More ship classes and faction hull styles
 - Mobile touch controls

@@ -84,6 +84,16 @@ button { font-family: inherit; cursor: pointer; }
 .opt button.on { color: #000; background: var(--cyan); border-color: var(--cyan); }
 .menu-footer { display: flex; justify-content: space-between; font-family: 'Orbitron'; font-size: 11px; letter-spacing: 0.3em; color: var(--muted); }
 .blink { color: var(--cyan); animation: pulse 2s infinite; }
+.menu-footer .rank { color: var(--amber); }
+.menu-panel li.sel { color: #fff; border-left: 2px solid var(--amber); padding-left: 10px; margin-left: -12px; }
+.menu-panel .abl li { padding: 5px 0; font-size: 15px; line-height: 1.3; }
+.menu-panel .amber { color: var(--amber); }
+.menu-panel .fine { font-size: 13px; color: var(--muted); margin-top: 10px; line-height: 1.4; }
+.menu-panel .box { max-height: 62vh; overflow-y: auto; }
+table.rec { width: 100%; border-collapse: collapse; font-size: 14px; margin: 8px 0; }
+table.rec th { font-family: 'Orbitron'; font-size: 9px; letter-spacing: 0.15em; color: var(--muted); text-align: right; padding: 4px 6px; font-weight: 600; }
+table.rec td { text-align: right; padding: 4px 6px; border-top: 1px solid var(--line); color: var(--text); }
+table.rec th:first-child, table.rec td:first-child { text-align: left; padding-left: 0; }
 @keyframes pulse { 50% { opacity: 0.35; } }
 @keyframes rise { from { opacity: 0; transform: translateY(12px); } }
 
@@ -112,7 +122,7 @@ button { font-family: inherit; cursor: pointer; }
 .stats { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; font-size: 13px; color: var(--muted); letter-spacing: 0.1em; display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; }
 .stats b { color: var(--text); text-align: right; }
 
-.log { position: absolute; left: 18px; bottom: 18px; width: 340px; max-height: 150px; overflow: hidden; display: flex; flex-direction: column-reverse; font-size: 14px; letter-spacing: 0.05em; mask-image: linear-gradient(to top, #000 60%, transparent); -webkit-mask-image: linear-gradient(to top, #000 60%, transparent); }
+.log { position: absolute; left: 18px; bottom: 18px; width: 300px; max-height: 150px; overflow: hidden; display: flex; flex-direction: column-reverse; font-size: 14px; letter-spacing: 0.05em; mask-image: linear-gradient(to top, #000 60%, transparent); -webkit-mask-image: linear-gradient(to top, #000 60%, transparent); }
 .log div { padding: 2px 0; color: var(--muted); animation: rise 0.3s; }
 .log div.hit { color: #ffb0a0; }
 .log div.sunk { color: var(--amber); font-weight: 700; }
@@ -132,6 +142,36 @@ button { font-family: inherit; cursor: pointer; }
 .place-help b { color: var(--cyan); font-weight: 600; }
 .place-row { display: flex; gap: 6px; }
 .place-row .hbtn { flex: 1; }
+
+/* ---------- Tactical bar ---------- */
+/* sits between the log (bottom left) and the HUD buttons (bottom right) */
+.tactical { position: absolute; left: 330px; right: 280px; bottom: 16px; display: flex; flex-direction: column; align-items: center; gap: 8px; transition: opacity 0.5s; }
+body.cine #hud .tactical { opacity: 0; pointer-events: none; }
+.tac-top { display: flex; align-items: stretch; justify-content: center; gap: 8px; max-width: 100%; }
+.tac-top .hbtn { white-space: nowrap; }
+.tac-help { min-width: 0; text-align: center; font-size: 14px; line-height: 1.3; letter-spacing: 0.04em; color: #cfe8f4; background: rgba(3, 9, 16, 0.78); border: 1px solid var(--line); padding: 5px 14px; backdrop-filter: blur(6px); }
+.tac-help b { color: var(--amber); font-family: 'Orbitron'; font-size: 11px; letter-spacing: 0.18em; }
+.tac-help em { font-style: normal; color: #ff9a9a; }
+.energy { display: flex; align-items: center; gap: 8px; padding: 5px 10px; white-space: nowrap; background: var(--panel); border: 1px solid var(--line); font-family: 'Orbitron'; font-size: 9px; letter-spacing: 0.25em; color: var(--muted); backdrop-filter: blur(6px); }
+.energy b { color: var(--amber); font-size: 14px; letter-spacing: 0.05em; }
+.epips { display: flex; gap: 3px; }
+.epips i { width: 7px; height: 11px; border: 1px solid rgba(255,179,71,0.45); transform: skewX(-15deg); }
+.epips i.on { background: var(--amber); box-shadow: 0 0 6px rgba(255,179,71,0.8); }
+.abilities { display: flex; gap: 6px; justify-content: center; max-width: 100%; }
+.abtn { position: relative; min-width: 98px; padding: 7px 8px 6px 22px; text-align: left; background: var(--panel); border: 1px solid var(--line); border-bottom: 2px solid var(--cyan-dim); color: var(--text); backdrop-filter: blur(6px); transition: all 0.15s; }
+.abtn i { position: absolute; left: 6px; top: 6px; font-style: normal; font-family: 'Orbitron'; font-size: 10px; color: var(--cyan); opacity: 0.8; }
+.abtn b { position: absolute; right: 6px; top: 5px; font-family: 'Orbitron'; font-size: 12px; color: var(--amber); }
+.abtn .an { display: block; font-family: 'Orbitron'; font-size: 10px; font-weight: 600; letter-spacing: 0.1em; padding-right: 14px; white-space: nowrap; }
+.abtn .as { display: block; font-size: 11px; color: var(--muted); letter-spacing: 0.12em; margin-top: 2px; white-space: nowrap; }
+.abtn:hover { border-color: var(--cyan); box-shadow: 0 0 12px var(--cyan-dim) inset; }
+.abtn.on { border-color: var(--amber); border-bottom-color: var(--amber); background: rgba(255,160,50,0.22); box-shadow: 0 0 14px rgba(255,179,71,0.45); }
+.abtn.off { opacity: 0.42; }
+.abtn.off:hover { border-color: var(--line); box-shadow: none; }
+.abtn.lost .an { text-decoration: line-through; }
+.abtn.lost .as { color: #a8666c; }
+.hbtn.fire { font-size: 13px; padding: 0 20px; border-color: var(--amber); color: #fff; background: rgba(255,160,50,0.28); }
+.hbtn.fire:disabled { opacity: 0.45; cursor: not-allowed; border-color: var(--line); background: var(--panel); }
+.hbtn.fire:hover:not(:disabled) { box-shadow: 0 0 16px rgba(255,179,71,0.6) inset; border-color: #ffd28a; }
 
 .cursor-tag { position: absolute; font-family: 'Orbitron'; font-size: 12px; letter-spacing: 0.2em; color: var(--amber); text-shadow: 0 0 8px rgba(255,179,71,0.8); pointer-events: none; transform: translate(18px, -26px); display: none; white-space: nowrap; }
 
@@ -168,6 +208,9 @@ body.cine #skipHint { opacity: 1; }
 .go-title.lose { color: #ffd9dc; text-shadow: 0 0 40px var(--red), 0 0 90px #900; }
 .go-stats { display: flex; gap: 40px; justify-content: center; margin-bottom: 34px; flex-wrap: wrap; }
 .go-stats div { font-family: 'Orbitron'; font-size: 11px; letter-spacing: 0.3em; color: var(--muted); }
+.go-stats b.score { color: var(--amber); }
+.go-record { font-family: 'Orbitron'; font-size: 12px; letter-spacing: 0.3em; color: var(--muted); margin: -10px 0 30px; }
+.go-record b { color: var(--amber); }
 .go-stats b { display: block; font-size: 30px; color: #fff; letter-spacing: 0.05em; margin-top: 6px; }
 .go-buttons { display: flex; gap: 14px; justify-content: center; }
 .go-buttons .mbtn { min-width: 220px; text-align: center; }
@@ -178,4 +221,15 @@ body.cine #skipHint { opacity: 1; }
   .log { width: 60vw; max-height: 90px; }
   .placement { width: 220px; top: 80px; }
   .menu-panel { max-width: 100%; }
+}
+@media (max-width: 1340px) {
+  /* the bar no longer fits between the log and the HUD buttons: lift it above them */
+  .tactical { bottom: 64px; left: 12px; right: 12px; }
+  .tac-top, .abilities { flex-wrap: wrap; }
+  .log { max-height: 44px; }
+}
+@media (max-width: 640px) {
+  .abtn { min-width: 0; padding: 6px 6px 5px 18px; }
+  .abtn .as { display: none; }
+  .tac-help { font-size: 12px; }
 }

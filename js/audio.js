@@ -425,6 +425,13 @@ export class AudioEngine {
       case 'alarm':
         for (let i = 0; i < 2; i++) { this.tone(t + i * 0.45, 0.35, 'square', 520, 520, 0.05, 0.5); this.tone(t + i * 0.45 + 0.18, 0.2, 'square', 390, 390, 0.05, 0.5); }
         break;
+      case 'scan': // sonar sweep
+        this.tone(t, 0.9, 'sine', 620, 1240, 0.12, 0.9, 0.02);
+        this.tone(t + 0.5, 1.1, 'sine', 1240, 1240, 0.08, 1.0, 0.01);
+        this.noiseBurst(t, 0.9, 'bandpass', 500, 3500, 0.08, 5, 0.9); break;
+      case 'ping': this.tone(t, 0.35, 'sine', 1760, 1760, 0.09, 0.9, 0.005); this.tone(t, 0.2, 'triangle', 2640, 2640, 0.03, 0.9); break;
+      case 'select': this.tone(t, 0.1, 'triangle', 700, 1100, 0.09, 0.3); this.tone(t + 0.06, 0.14, 'sine', 1650, 1650, 0.06, 0.4); break;
+      case 'lock': this.tone(t, 0.07, 'square', 1300, 1300, 0.05, 0.2); break;
       case 'incoming': this.tone(t, 1.2, 'sawtooth', 1800, 150, 0.06, 0.6, 0.3); this.noiseBurst(t, 1.2, 'bandpass', 3000, 300, 0.15, 2, 0.6); break;
     }
   }

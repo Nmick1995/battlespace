@@ -41,15 +41,17 @@
   <div class="menu-body">
     <nav class="menu-buttons">
       <button class="mbtn primary" data-act="play"><i>01</i>ENGAGE ENEMY</button>
-      <button class="mbtn" data-act="difficulty"><i>02</i>THREAT LEVEL: <b id="diffLabel">COMMANDER</b></button>
-      <button class="mbtn" data-act="settings"><i>03</i>SYSTEMS</button>
-      <button class="mbtn" data-act="briefing"><i>04</i>BRIEFING</button>
+      <button class="mbtn" data-act="mode"><i>02</i>BATTLE MODE: <b id="modeLabel">TACTICAL</b></button>
+      <button class="mbtn" data-act="difficulty"><i>03</i>THREAT LEVEL: <b id="diffLabel">COMMANDER</b></button>
+      <button class="mbtn" data-act="settings"><i>04</i>SYSTEMS</button>
+      <button class="mbtn" data-act="briefing"><i>05</i>BRIEFING</button>
+      <button class="mbtn" data-act="record"><i>06</i>SERVICE RECORD</button>
     </nav>
     <div class="menu-panel" id="menuPanel"></div>
   </div>
   <div class="menu-footer">
     <span>SECTOR 7G · KEPLER-442 ORBITAL THEATRE</span>
-    <span class="blink">● SIGNAL ACQUIRED</span>
+    <span class="rank" id="rankLine"></span>
   </div>
 </div>
 
@@ -90,6 +92,17 @@
     <button class="mbtn primary small" id="btnEngage" disabled>ENGAGE ▸</button>
   </div>
 
+  <!-- Tactical bar: Energy and ship abilities (Tactical mode), FIRE button for queued targets -->
+  <div class="tactical hidden" id="tactical">
+    <div class="tac-top">
+      <div class="energy" id="energy"></div>
+      <div class="tac-help" id="tacHelp"></div>
+      <button class="hbtn" id="btnLanceRotate">⤾ ROTATE</button>
+      <button class="hbtn fire" id="btnFire">FIRE</button>
+    </div>
+    <div class="abilities" id="abilities"></div>
+  </div>
+
   <div class="cursor-tag" id="cursorTag"></div>
 </div>
 
@@ -105,6 +118,7 @@
     <div class="go-kicker" id="goKicker">ENGAGEMENT COMPLETE</div>
     <div class="go-title" id="goTitle">VICTORY</div>
     <div class="go-stats" id="goStats"></div>
+    <div class="go-record" id="goRecord"></div>
     <div class="go-buttons">
       <button class="mbtn primary" id="btnAgain">RE-ENGAGE</button>
       <button class="mbtn" id="btnMenu">MAIN MENU</button>
